@@ -10,7 +10,6 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 # Google Sheets
 GOOGLE_SHEETS_WEBHOOK = os.getenv("GOOGLE_SHEETS_WEBHOOK")
 
-# Проверка (чтобы сразу видеть ошибку)
 if not TELEGRAM_CLIENT_BOT_TOKEN:
     raise RuntimeError("TELEGRAM_CLIENT_BOT_TOKEN not set")
 

@@ -1,60 +1,58 @@
 import requests
-from app.config import TELEGRAM_ADMIN_BOT_TOKEN
-
-
+from app.config import TELEGRAM_ADMIN_BOT_TOKEN, ADMIN_CHAT_ID
 
 async def handle_admin_update(update: dict):
     if "callback_query" in update:
         handle_callback(update["callback_query"])
         return
 
-    if "message" not in update:
+    message = update.get("message")
+    if not message:
         return
 
-    message = update["message"]
-    chat_id = message["chat"]["id"]
-
-    if chat_id != TELEGRAM_ADMIN_BOT_TOKEN:
+    if message["chat"]["id"] != ADMIN_CHAT_ID:
         return
 
-    text = message.get("text", "")
-
-    if text == "/start":
+    if message.get("text") == "/start":
         send_admin_message("👋 Админ-бот готов принимать заявки.")
-
 
 def handle_callback(callback: dict):
     data = callback["data"]
     callback_id = callback["id"]
 
-    if data.startswith("book:"):
-        lead_id = data.split(":")[1]
-        send_admin_message(f"📅 Лид {lead_id} отмечен как ЗАПИСАННЫЙ")
+    parts = data.split(":")
+
+    if parts[0] == "status":
+        _, status, lead_id = parts
+        send_admin_message(f"🔥 Лид {lead_id} → {status}")
+        answer_callback(callback_id, f"Статус: {status}")
+
+    elif parts[0] == "book":
+        lead_id = parts[1]
+        send_admin_message(f"📅 Лид {lead_id} записан")
         answer_callback(callback_id, "Записано")
 
-    elif data.startswith("call:"):
-        lead_id = data.split(":")[1]
-        send_admin_message(f"📞 Лид {lead_id} отмечен для звонка")
-        answer_callback(callback_id, "Отмечено")
+    elif parts[0] == "call":
+        lead_id = parts[1]
+        send_admin_message(f"📞 Лид {lead_id} — перезвонить")
+        answer_callback(callback_id, "Ок")
 
-
-def send_admin_message(text: str, buttons: dict | None = None):
-    payload = {
-        "chat_id": TELEGRAM_ADMIN_BOT_TOKEN,
-        "text": text
-    }
-
-    if buttons:
-        payload["reply_markup"] = buttons
-
-    requests.post(f"{TELEGRAM_ADMIN_BOT_TOKEN}/sendMessage", json=payload)
-
+def send_admin_message(text: str):
+    requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_ADMIN_BOT_TOKEN}/sendMessage",
+        json={
+            "chat_id": ADMIN_CHAT_ID,
+            "text": text
+        },
+        timeout=5
+    )
 
 def answer_callback(callback_id: str, text: str):
     requests.post(
-        f"{TELEGRAM_ADMIN_BOT_TOKEN}/answerCallbackQuery",
+        f"https://api.telegram.org/bot{TELEGRAM_ADMIN_BOT_TOKEN}/answerCallbackQuery",
         json={
             "callback_query_id": callback_id,
             "text": text
-        }
+        },
+        timeout=5
     )
