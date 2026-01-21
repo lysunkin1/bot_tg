@@ -10,8 +10,8 @@ class DialogManager:
     async def handle(self, chat_id: int, text: str):
         data = self.state.get(chat_id)
 
-        # START
-        if text == "/start" or not data:
+        # /start — сброс
+        if text == "/start":
             self.state[chat_id] = {}
             await self.bot.send_message(
                 chat_id,
@@ -19,19 +19,28 @@ class DialogManager:
             )
             return
 
-        # Услуга
+        # если диалог не начат
+        if data is None:
+            self.state[chat_id] = {}
+            await self.bot.send_message(
+                chat_id,
+                "Здравствуйте 👋\nКакую услугу вы хотите?"
+            )
+            return
+
+        # услуга
         if "service" not in data:
             data["service"] = text
             await self.bot.send_message(chat_id, "Как вас зовут?")
             return
 
-        # Имя
+        # имя
         if "name" not in data:
             data["name"] = text
             await self.bot.send_message(chat_id, "Введите номер телефона 📞")
             return
 
-        # Телефон → финал
+        # телефон → финал
         if "phone" not in data:
             data["phone"] = text
 
