@@ -9,7 +9,7 @@ def notify_admin(lead: dict):
         f"👤 Имя: {lead['client_name']}\n"
         f"📞 Телефон: {lead['phone']}\n"
         f"💅 Услуга: {lead['service']}\n"
-        f"🕒 Желаемое время: {lead.get('admin_comment', '—')}\n"
+        f"🕒 Время: {lead.get('admin_comment', '—')}\n"
         f"🤖 AI статус: {lead['ai_status']}\n"
         f"💬 AI комментарий: {lead['ai_comment']}"
     )
@@ -20,10 +20,6 @@ def notify_admin(lead: dict):
                 {"text": "🔥 HOT", "callback_data": f"status:HOT:{lead['lead_id']}"},
                 {"text": "🟡 WARM", "callback_data": f"status:WARM:{lead['lead_id']}"},
                 {"text": "❄️ COLD", "callback_data": f"status:COLD:{lead['lead_id']}"}
-            ],
-            [
-                {"text": "📅 Записан", "callback_data": f"book:{lead['lead_id']}"},
-                {"text": "📞 Перезвонить", "callback_data": f"call:{lead['lead_id']}"}
             ]
         ]
     }
