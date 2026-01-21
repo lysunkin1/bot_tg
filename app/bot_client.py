@@ -1,12 +1,13 @@
 import requests
-from app.config import TELEGRAM_BOT_TOKEN
+from app.config import TELEGRAM_CLIENT_BOT_TOKEN
+
 from app.dialog_manager import DialogManager
 
 dialog_manager = DialogManager()
 
 
 def send_message(chat_id: int, text: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_CLIENT_BOT_TOKEN}/sendMessage"
     response = requests.post(url, json={
         "chat_id": chat_id,
         "text": text
