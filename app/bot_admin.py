@@ -1,12 +1,11 @@
 import requests
-from app.config import TELEGRAM_ADMIN_BOT_TOKEN, ADMIN_CHAT_ID
+from app.config import TELEGRAM_ADMIN_BOT_TOKEN
 from app.sheets_service import update_lead_status
 
 
 async def handle_admin_update(update: dict):
     if "callback_query" in update:
         handle_callback(update["callback_query"])
-        return
 
 
 def handle_callback(callback: dict):

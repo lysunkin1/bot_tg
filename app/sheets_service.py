@@ -3,11 +3,7 @@ from app.config import GOOGLE_SHEETS_WEBHOOK
 
 
 def send_to_sheets(lead: dict):
-    requests.post(
-        GOOGLE_SHEETS_WEBHOOK,
-        json=lead,
-        timeout=5
-    )
+    requests.post(GOOGLE_SHEETS_WEBHOOK, json=lead, timeout=5)
 
 
 def update_lead_status(lead_id: int, status: str):
@@ -17,8 +13,4 @@ def update_lead_status(lead_id: int, status: str):
         "admin_status": status
     }
 
-    requests.post(
-        GOOGLE_SHEETS_WEBHOOK,
-        json=payload,
-        timeout=5
-    )
+    requests.post(GOOGLE_SHEETS_WEBHOOK, json=payload, timeout=5)
