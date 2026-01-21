@@ -1,5 +1,6 @@
 import requests
-from app.config import ADMIN_API, ADMIN_CHAT_ID
+from app.config import TELEGRAM_ADMIN_BOT_TOKEN
+
 
 
 async def handle_admin_update(update: dict):
@@ -13,7 +14,7 @@ async def handle_admin_update(update: dict):
     message = update["message"]
     chat_id = message["chat"]["id"]
 
-    if chat_id != ADMIN_CHAT_ID:
+    if chat_id != TELEGRAM_ADMIN_BOT_TOKEN:
         return
 
     text = message.get("text", "")
@@ -39,19 +40,19 @@ def handle_callback(callback: dict):
 
 def send_admin_message(text: str, buttons: dict | None = None):
     payload = {
-        "chat_id": ADMIN_CHAT_ID,
+        "chat_id": TELEGRAM_ADMIN_BOT_TOKEN,
         "text": text
     }
 
     if buttons:
         payload["reply_markup"] = buttons
 
-    requests.post(f"{ADMIN_API}/sendMessage", json=payload)
+    requests.post(f"{TELEGRAM_ADMIN_BOT_TOKEN}/sendMessage", json=payload)
 
 
 def answer_callback(callback_id: str, text: str):
     requests.post(
-        f"{ADMIN_API}/answerCallbackQuery",
+        f"{TELEGRAM_ADMIN_BOT_TOKEN}/answerCallbackQuery",
         json={
             "callback_query_id": callback_id,
             "text": text
