@@ -4,22 +4,18 @@ from app.config import TELEGRAM_ADMIN_BOT_TOKEN, ADMIN_CHAT_ID
 
 def notify_admin(lead: dict):
     text = (
-        "📥 *Новая заявка*\n\n"
-        f"🆔 ID: {lead['lead_id']}\n"
-        f"👤 Имя: {lead['client_name']}\n"
+        "📥 Нова заявка\n\n"
+        f"👤 Імʼя: {lead['client_name']}\n"
         f"📞 Телефон: {lead['phone']}\n"
-        f"💅 Услуга: {lead['service']}\n"
-        f"🕒 Время: {lead.get('admin_comment', '—')}\n"
-        f"🤖 AI статус: {lead['ai_status']}\n"
-        f"💬 AI комментарий: {lead['ai_comment']}"
+        f"💅 Послуга: {lead['service']}\n"
+        f"🕒 Час: {lead['admin_comment']}\n"
+        f"🤖 AI: {lead['ai_status']}"
     )
 
     keyboard = {
         "inline_keyboard": [
             [
-                {"text": "🔥 HOT", "callback_data": f"status:HOT:{lead['lead_id']}"},
-                {"text": "🟡 WARM", "callback_data": f"status:WARM:{lead['lead_id']}"},
-                {"text": "❄️ COLD", "callback_data": f"status:COLD:{lead['lead_id']}"}
+                {"text": "⚙️ Меню", "callback_data": f"menu:{lead['lead_id']}"}
             ]
         ]
     }
@@ -29,7 +25,6 @@ def notify_admin(lead: dict):
         json={
             "chat_id": ADMIN_CHAT_ID,
             "text": text,
-            "parse_mode": "Markdown",
             "reply_markup": keyboard
         },
         timeout=5
