@@ -4,7 +4,7 @@ from app.config import GOOGLE_SHEETS_WEBHOOK
 
 def send_to_sheets(lead: dict) -> None:
     """
-    Отправляет лид в Google Sheets через Apps Script webhook
+    Отправка лида в Google Sheets (Apps Script Webhook)
     """
 
     payload = {
@@ -25,5 +25,4 @@ def send_to_sheets(lead: dict) -> None:
             timeout=5
         )
     except Exception as e:
-        # Ошибку логируем, но бота не валим
-        print("❌ Error sending to Google Sheets:", e)
+        print("❌ Google Sheets error:", e)
