@@ -2,10 +2,10 @@ import os
 
 TELEGRAM_CLIENT_BOT_TOKEN = os.getenv("TELEGRAM_CLIENT_BOT_TOKEN")
 TELEGRAM_ADMIN_BOT_TOKEN = os.getenv("TELEGRAM_ADMIN_BOT_TOKEN")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
+
 GOOGLE_SHEETS_WEBHOOK = os.getenv("GOOGLE_SHEETS_WEBHOOK")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not TELEGRAM_CLIENT_BOT_TOKEN:
-    raise RuntimeError("TELEGRAM_CLIENT_BOT_TOKEN is not set")
-
-if not GOOGLE_SHEETS_WEBHOOK:
-    raise RuntimeError("GOOGLE_SHEETS_WEBHOOK is not set")
+    raise RuntimeError("TELEGRAM_CLIENT_BOT_TOKEN not set")

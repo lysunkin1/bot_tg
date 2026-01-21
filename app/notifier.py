@@ -1,26 +1,20 @@
-import os
-import httpx
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from app.config import ADMIN_CHAT_ID
 
-ADMIN_BOT_TOKEN = os.getenv("TELEGRAM_ADMIN_BOT_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+async def notify_admin(bot, lead: dict):
+    text = (
+        "📩 Новая заявка\n\n"
+        f"👤 Имя: {lead['name']}\n"
+        f"📞 Телефон: {lead['phone']}\n"
+        f"💼 Услуга: {lead['service']}\n\n"
+        f"🔥 Статус: {lead['status']}\n"
+        f"💬 Комментарий: {lead['comment']}"
+    )
 
-ADMIN_API_URL = f"https://api.telegram.org/bot{ADMIN_BOT_TOKEN}"
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Записать", callback_data="confirm")],
+        [InlineKeyboardButton("📞 Перезвонить", callback_data="call")],
+        [InlineKeyboardButton("❌ Отказ", callback_data="reject")]
+    ])
 
-
-async def notify_admin(text: str):
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"{ADMIN_API_URL}/sendMessage",
-            json={
-                "chat_id": ADMIN_CHAT_ID,
-                "text": text,
-                "reply_markup": {
-                    "inline_keyboard": [
-                        [{"text": "📅 Записать", "callback_data": "admin_book"}],
-                        [{"text": "📞 Перезвонить", "callback_data": "admin_call"}],
-                        [{"text": "❌ Отказ", "callback_data": "admin_reject"}],
-                    ]
-                },
-            },
-            timeout=10,
-        )
+    await bot.send_message(ADMIN_CHAT_ID, text, reply_markup=keyboard)
