@@ -1,47 +1,25 @@
-import json
-from openai import OpenAI
-from app.config import OPENAI_API_KEY
+import os
+from openai import AsyncOpenAI
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-SYSTEM_PROMPT = """
-Ты — AI-ассистент администратора салона красоты.
-Проанализируй диалог клиента и верни JSON СТРОГО в таком формате:
 
-{
-  "status": "hot | warm | cold",
-  "service": "кратко",
-  "urgency": "когда планирует",
-  "client_type": "new | returning",
-  "comment": "краткий вывод"
-}
+async def analyze_lead(user: dict) -> str:
+    prompt = f"""
+Клиент салона красоты.
+Услуга: {user['service']}
+Имя: {user['name']}
 
-Правила:
-- hot — хочет прийти скоро и готов к контакту
-- warm — интерес есть, но без срочности
-- cold — просто интересуется
-- Никакого текста вне JSON
+Сделай краткий вывод:
+- тип клиента
+- срочность
+- как лучше с ним общаться
 """
 
-def analyze_dialog(dialog: str) -> dict:
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": dialog}
-        ],
-        temperature=0.2
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=120,
     )
 
-    content = response.choices[0].message.content.strip()
-
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        return {
-            "status": "warm",
-            "service": "не определено",
-            "urgency": "не указано",
-            "client_type": "new",
-            "comment": "AI не смог корректно распарсить ответ"
-        }
+    return response.choices[0].message.content.strip()
