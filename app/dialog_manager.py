@@ -3,11 +3,8 @@ from datetime import datetime
 from app.ai_service import analyze_lead
 from app.sheets_service import send_to_sheets
 from app.notifier import notify_admin
-from app.validators import (
-    is_valid_phone_ua,
-    normalize_phone_ua,
-    get_date_label,
-)
+from app.validators import is_valid_phone_ua, normalize_phone_ua
+from app.services import SERVICES
 
 
 class DialogManager:
@@ -15,126 +12,95 @@ class DialogManager:
         self.bot = bot
         self.state = {}
 
-    async def handle(self, chat_id: int, text: str, callback_data: str | None = None):
+    async def handle(self, chat_id: int, text: str = "", callback_data: str | None = None):
         data = self.state.get(chat_id)
 
-        # ───── /start ─────
+        # /start
         if text == "/start":
-            self.state[chat_id] = {}
-            await self.bot.send_message(
-                chat_id,
-                "Вітаємо 👋\nЯку послугу ви хочете?"
-            )
+            self.state[chat_id] = {"step": "service"}
+            await self.send_services(chat_id)
             return
 
-        # ───── начало ─────
         if data is None:
-            self.state[chat_id] = {}
-            await self.bot.send_message(
-                chat_id,
-                "Вітаємо 👋\nЯку послугу ви хочете?"
-            )
+            self.state[chat_id] = {"step": "service"}
+            await self.send_services(chat_id)
             return
 
-        # ───── услуга ─────
-        if "service" not in data:
-            data["service"] = text
-            await self.bot.send_message(chat_id, "Як вас звати?")
+        step = data.get("step")
+
+        # ───── УСЛУГА ─────
+        if step == "service":
+            if callback_data and callback_data.startswith("service:"):
+                key = callback_data.split(":")[1]
+                service = SERVICES[key]
+
+                data["service"] = f"{service['title']} — {service['price']} грн"
+                data["step"] = "name"
+
+                await self.bot.send_message(chat_id, "Як вас звати?")
             return
 
-        # ───── имя ─────
-        if "name" not in data:
+        # ───── ИМЯ ─────
+        if step == "name":
             data["name"] = text
+            data["step"] = "phone"
             await self.bot.send_message(
                 chat_id,
-                "Введіть номер телефону 📞\n\n"
-                "Приклад: +380501234567\n"
-                "Ми використовуємо номер лише для звʼязку"
+                "Введіть номер телефону 📞\nПриклад: +380501234567"
             )
             return
 
-        # ───── телефон ─────
-        if "phone" not in data:
+        # ───── ТЕЛЕФОН ─────
+        if step == "phone":
             if not is_valid_phone_ua(text):
                 await self.bot.send_message(
                     chat_id,
-                    "❌ Номер виглядає некоректно.\n"
-                    "Введіть номер у форматі:\n"
-                    "+380501234567 або 0501234567"
+                    "❌ Невірний формат номера.\nСпробуйте ще раз."
                 )
                 return
 
             data["phone"] = normalize_phone_ua(text)
+            data["step"] = "date"
 
             keyboard = {
                 "inline_keyboard": [
                     [
                         {"text": "Сьогодні", "callback_data": "date:today"},
                         {"text": "Завтра", "callback_data": "date:tomorrow"}
-                    ],
-                    [
-                        {"text": "Ввести дату вручну", "callback_data": "date:manual"}
                     ]
                 ]
             }
 
             await self.bot.send_message(
                 chat_id,
-                "Коли вам зручно прийти? 📅",
+                "Оберіть дату візиту 📅",
                 reply_markup=keyboard
             )
             return
 
-        # ───── обработка callback даты ─────
-        if callback_data and callback_data.startswith("date:"):
-            key = callback_data.split(":")[1]
+        # ───── ДАТА ─────
+        if step == "date" and callback_data:
+            if callback_data.startswith("date:"):
+                key = callback_data.split(":")[1]
+                today = datetime.now().date()
 
-            if key in ("today", "tomorrow"):
-                data["visit_date"] = get_date_label(key)
+                if key == "today":
+                    data["visit_date"] = today.strftime("%d.%m.%Y")
+                elif key == "tomorrow":
+                    data["visit_date"] = (today.replace(day=today.day + 1)).strftime("%d.%m.%Y")
+
+                data["step"] = "time"
+
                 await self.bot.send_message(
                     chat_id,
                     f"Обрана дата: {data['visit_date']}\n"
                     "Напишіть зручний час ⏰\n"
                     "Приклад: 15:30 або після 18:00"
                 )
-                return
-
-            if key == "manual":
-                await self.bot.send_message(
-                    chat_id,
-                    "Введіть дату у форматі:\n"
-                    "ДД.ММ.РРРР\n\n"
-                    "Приклад: 25.01.2026"
-                )
-                data["awaiting_manual_date"] = True
-                return
-
-        # ───── ручная дата ─────
-        if data.get("awaiting_manual_date"):
-            try:
-                date = datetime.strptime(text, "%d.%m.%Y").date()
-                if date < datetime.now().date():
-                    raise ValueError
-            except ValueError:
-                await self.bot.send_message(
-                    chat_id,
-                    "❌ Некоректна дата або дата в минулому.\n"
-                    "Спробуйте ще раз (ДД.ММ.РРРР)"
-                )
-                return
-
-            data["visit_date"] = date.strftime("%d.%m.%Y")
-            data.pop("awaiting_manual_date")
-
-            await self.bot.send_message(
-                chat_id,
-                f"Обрана дата: {data['visit_date']}\n"
-                "Напишіть зручний час ⏰"
-            )
             return
 
-        # ───── время ─────
-        if "visit_time" not in data:
+        # ───── ВРЕМЯ ─────
+        if step == "time":
             data["visit_time"] = text
 
             ai = analyze_lead(data)
@@ -148,7 +114,7 @@ class DialogManager:
                 "ai_status": ai["status"],
                 "ai_comment": ai["comment"],
                 "admin_status": "",
-                "admin_comment": f"Дата: {data['visit_date']}, Час: {data['visit_time']}",
+                "admin_comment": f"{data['visit_date']} {data['visit_time']}",
                 "source": "telegram",
                 "updated_at": ""
             }
@@ -158,8 +124,26 @@ class DialogManager:
 
             await self.bot.send_message(
                 chat_id,
-                "Дякуємо 🙌\n"
-                "Ваша заявка прийнята, ми звʼяжемось з вами найближчим часом."
+                "Дякуємо 🙌\nМи отримали вашу заявку та скоро звʼяжемось з вами."
             )
 
             self.state.pop(chat_id, None)
+
+    async def send_services(self, chat_id: int):
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": f"{s['title']} — {s['price']} грн",
+                        "callback_data": f"service:{key}"
+                    }
+                ]
+                for key, s in SERVICES.items()
+            ]
+        }
+
+        await self.bot.send_message(
+            chat_id,
+            "Оберіть послугу 💅",
+            reply_markup=keyboard
+        )
