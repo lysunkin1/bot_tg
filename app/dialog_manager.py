@@ -13,7 +13,7 @@ class DialogManager:
     async def handle(self, chat_id: int, text: str):
         data = self.state.get(chat_id)
 
-        # ───── /start — всегда сбрасывает диалог ─────
+        # ───── /start — всегда сбрасывает ─────
         if text == "/start":
             self.state[chat_id] = {}
             await self.bot.send_message(
@@ -22,7 +22,7 @@ class DialogManager:
             )
             return
 
-        # ───── если диалог ещё не начат ─────
+        # ───── если диалог не начат ─────
         if data is None:
             self.state[chat_id] = {}
             await self.bot.send_message(
@@ -34,29 +34,33 @@ class DialogManager:
         # ───── шаг 1: услуга ─────
         if "service" not in data:
             data["service"] = text
-            await self.bot.send_message(
-                chat_id,
-                "Как вас зовут?"
-            )
+            await self.bot.send_message(chat_id, "Как вас зовут?")
             return
 
         # ───── шаг 2: имя ─────
         if "name" not in data:
             data["name"] = text
+            await self.bot.send_message(chat_id, "Введите номер телефона 📞")
+            return
+
+        # ───── шаг 3: телефон ─────
+        if "phone" not in data:
+            data["phone"] = text
             await self.bot.send_message(
                 chat_id,
-                "Введите номер телефона 📞"
+                "Когда вам удобно прийти?\n\n"
+                "📅 Пример: 25 января после 16:00"
             )
             return
 
-        # ───── шаг 3: телефон → финал ─────
-        if "phone" not in data:
-            data["phone"] = text
+        # ───── шаг 4: желаемое время ─────
+        if "visit_time" not in data:
+            data["visit_time"] = text
 
-            # 🔹 AI-анализ
+            # 🤖 AI-анализ
             ai = analyze_lead(data)
 
-            # 🔹 ЛИД — СТРОГО ПОД GOOGLE SHEETS
+            # 📦 ЛИД под Google Sheets
             lead = {
                 "created_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
                 "lead_id": chat_id,
@@ -66,7 +70,7 @@ class DialogManager:
                 "ai_status": ai["status"],
                 "ai_comment": ai["comment"],
                 "admin_status": "",
-                "admin_comment": "",
+                "admin_comment": f"Желаемое время: {data['visit_time']}",
                 "source": "telegram",
                 "updated_at": ""
             }
@@ -80,8 +84,8 @@ class DialogManager:
             # 3️⃣ Ответ клиенту
             await self.bot.send_message(
                 chat_id,
-                "Спасибо 🙌\nЗаявка отправлена администратору."
+                "Спасибо 🙌\nМы получили вашу заявку и скоро свяжемся с вами."
             )
 
-            # 🧹 очищаем состояние
+            # 🧹 очистка состояния
             self.state.pop(chat_id, None)
