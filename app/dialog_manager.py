@@ -1,117 +1,79 @@
-from enum import Enum
-
-from app.ai_service import analyze_dialog
-from app.notifier import notify_manager_with_actions
-from app.crm_service import save_lead_to_crm
-
-
-class DialogState(Enum):
-    SERVICE = "service"
-    CLIENT_TYPE = "client_type"
-    URGENCY = "urgency"
-    PREFERENCES = "preferences"
-    CONTACT = "contact"
-    DONE = "done"
+from typing import Dict
 
 
 class DialogManager:
-    def __init__(self):
-        # chat_id -> session
-        self.sessions = {}
+    """
+    Управляет диалогом с клиентом.
+    Пока без AI и CRM — только стабильная логика.
+    """
 
-    def start_session(self, chat_id: int):
-        self.sessions[chat_id] = {
-            "state": DialogState.SERVICE,
-            "messages": []
-        }
+    def __init__(self, bot):
+        self.bot = bot
 
-    def handle_message(self, chat_id: int, text: str) -> str:
-        text = text.strip()
+        # Простое хранение состояния диалога в памяти
+        # chat_id -> step
+        self.user_states: Dict[int, str] = {}
 
-        # защита от пустых / мусорных сообщений
-        if len(text) < 2:
-            return "Подскажите, пожалуйста, чуть подробнее 🙂"
+    async def handle_start(self, chat_id: int):
+        """
+        Обработка команды /start
+        """
+        self.user_states[chat_id] = "service"
 
-        # перезапуск диалога
-        if text.lower() == "/start":
-            self.start_session(chat_id)
-            return "Здравствуйте 👋 Подскажите, какая услуга вас интересует?"
+        await self.bot.send_message(
+            chat_id,
+            "Здравствуйте 👋\n"
+            "Подскажите, какая услуга вас интересует?"
+        )
 
-        session = self.sessions.get(chat_id)
+    async def handle_message(self, chat_id: int, text: str):
+        """
+        Обработка обычных сообщений
+        """
+        step = self.user_states.get(chat_id)
 
-        # если диалог ещё не начат
-        if not session:
-            return "Чтобы начать диалог, напишите /start 🙂"
+        if step is None:
+            # Если пользователь написал без /start
+            await self.handle_start(chat_id)
+            return
 
-        # сохраняем ответ клиента
-        session["messages"].append(text)
-        state = session["state"]
+        if step == "service":
+            self.user_states[chat_id] = "date"
 
-        # ===== FSM =====
-
-        if state == DialogState.SERVICE:
-            session["state"] = DialogState.CLIENT_TYPE
-            return "Вы уже были у нас ранее или рассматриваете салон впервые?"
-
-        if state == DialogState.CLIENT_TYPE:
-            session["state"] = DialogState.URGENCY
-            return "Когда вы планируете прийти? (например: сегодня, на неделе, позже)"
-
-        if state == DialogState.URGENCY:
-            session["state"] = DialogState.PREFERENCES
-            return "Есть ли пожелания по мастеру или удобному времени?"
-
-        if state == DialogState.PREFERENCES:
-            session["state"] = DialogState.CONTACT
-            return "Как удобнее с вами связаться?"
-
-        if state == DialogState.CONTACT:
-            session["state"] = DialogState.DONE
-            return self.finish_dialog(chat_id)
-
-        return "Спасибо 😊"
-
-    def finish_dialog(self, chat_id: int) -> str:
-        session = self.sessions.get(chat_id)
-        if not session:
-            return "Спасибо 😊"
-
-        dialog_text = "\n".join(session["messages"])
-
-        try:
-            # 🧠 AI-анализ диалога
-            lead = analyze_dialog(dialog_text)
-
-            # 📊 Сохраняем в CRM (Google Sheets)
-            save_lead_to_crm(
-                lead_id=chat_id,
-                lead=lead,
-                dialog=dialog_text
+            await self.bot.send_message(
+                chat_id,
+                f"Хорошо 👍\n"
+                f"Вы выбрали услугу: *{text}*\n\n"
+                f"Когда вам удобно прийти?",
+                parse_mode="Markdown"
             )
+            return
 
-            # 🤖 Отправляем заявку в Admin Bot с кнопками
-            admin_message = (
-                "📥 НОВАЯ ЗАЯВКА\n\n"
-                f"👤 Chat ID: {chat_id}\n\n"
-                f"💬 Диалог клиента:\n{dialog_text}\n\n"
-                f"🧠 AI-анализ:\n"
-                f"Статус: {lead.get('status')}\n"
-                f"Услуга: {lead.get('service')}\n"
-                f"Срочность: {lead.get('urgency')}\n"
-                f"Тип клиента: {lead.get('client_type')}\n"
-                f"Комментарий: {lead.get('comment')}"
+        if step == "date":
+            self.user_states[chat_id] = "contact"
+
+            await self.bot.send_message(
+                chat_id,
+                f"Отлично 🗓\n"
+                f"Записала: *{text}*\n\n"
+                f"Как удобнее с вами связаться?",
+                parse_mode="Markdown"
             )
+            return
 
-            notify_manager_with_actions(admin_message, chat_id)
+        if step == "contact":
+            self.user_states.pop(chat_id, None)
 
-        except Exception as e:
-            # если что-то пошло не так — хотя бы сообщаем админу
-            notify_manager_with_actions(
-                f"❌ Ошибка при обработке лида {chat_id}:\n{e}",
-                chat_id
+            await self.bot.send_message(
+                chat_id,
+                "Спасибо! 😊\n"
+                "Я передала информацию администратору.\n"
+                "С вами свяжутся в ближайшее время."
             )
+            return
 
-        # очищаем сессию
-        self.sessions.pop(chat_id, None)
-
-        return "Спасибо! Я передала информацию администратору 😊"
+        # Фолбэк на всякий случай
+        await self.bot.send_message(
+            chat_id,
+            "Я вас поняла 🙂 Напишите /start, чтобы начать заново."
+        )
