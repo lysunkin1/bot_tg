@@ -3,6 +3,11 @@ from datetime import datetime
 from app.ai_service import analyze_lead
 from app.sheets_service import send_to_sheets
 from app.notifier import notify_admin
+from app.validators import (
+    is_valid_phone_ua,
+    normalize_phone_ua,
+    get_date_label,
+)
 
 
 class DialogManager:
@@ -10,57 +15,130 @@ class DialogManager:
         self.bot = bot
         self.state = {}
 
-    async def handle(self, chat_id: int, text: str):
+    async def handle(self, chat_id: int, text: str, callback_data: str | None = None):
         data = self.state.get(chat_id)
 
-        # ───── /start — всегда сбрасывает ─────
+        # ───── /start ─────
         if text == "/start":
             self.state[chat_id] = {}
             await self.bot.send_message(
                 chat_id,
-                "Здравствуйте 👋\nКакую услугу вы хотите?"
+                "Вітаємо 👋\nЯку послугу ви хочете?"
             )
             return
 
-        # ───── если диалог не начат ─────
+        # ───── начало ─────
         if data is None:
             self.state[chat_id] = {}
             await self.bot.send_message(
                 chat_id,
-                "Здравствуйте 👋\nКакую услугу вы хотите?"
+                "Вітаємо 👋\nЯку послугу ви хочете?"
             )
             return
 
-        # ───── шаг 1: услуга ─────
+        # ───── услуга ─────
         if "service" not in data:
             data["service"] = text
-            await self.bot.send_message(chat_id, "Как вас зовут?")
+            await self.bot.send_message(chat_id, "Як вас звати?")
             return
 
-        # ───── шаг 2: имя ─────
+        # ───── имя ─────
         if "name" not in data:
             data["name"] = text
-            await self.bot.send_message(chat_id, "Введите номер телефона 📞")
-            return
-
-        # ───── шаг 3: телефон ─────
-        if "phone" not in data:
-            data["phone"] = text
             await self.bot.send_message(
                 chat_id,
-                "Когда вам удобно прийти?\n\n"
-                "📅 Пример: 25 января после 16:00"
+                "Введіть номер телефону 📞\n\n"
+                "Приклад: +380501234567\n"
+                "Ми використовуємо номер лише для звʼязку"
             )
             return
 
-        # ───── шаг 4: желаемое время ─────
+        # ───── телефон ─────
+        if "phone" not in data:
+            if not is_valid_phone_ua(text):
+                await self.bot.send_message(
+                    chat_id,
+                    "❌ Номер виглядає некоректно.\n"
+                    "Введіть номер у форматі:\n"
+                    "+380501234567 або 0501234567"
+                )
+                return
+
+            data["phone"] = normalize_phone_ua(text)
+
+            keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": "Сьогодні", "callback_data": "date:today"},
+                        {"text": "Завтра", "callback_data": "date:tomorrow"}
+                    ],
+                    [
+                        {"text": "Ввести дату вручну", "callback_data": "date:manual"}
+                    ]
+                ]
+            }
+
+            await self.bot.send_message(
+                chat_id,
+                "Коли вам зручно прийти? 📅",
+                reply_markup=keyboard
+            )
+            return
+
+        # ───── обработка callback даты ─────
+        if callback_data and callback_data.startswith("date:"):
+            key = callback_data.split(":")[1]
+
+            if key in ("today", "tomorrow"):
+                data["visit_date"] = get_date_label(key)
+                await self.bot.send_message(
+                    chat_id,
+                    f"Обрана дата: {data['visit_date']}\n"
+                    "Напишіть зручний час ⏰\n"
+                    "Приклад: 15:30 або після 18:00"
+                )
+                return
+
+            if key == "manual":
+                await self.bot.send_message(
+                    chat_id,
+                    "Введіть дату у форматі:\n"
+                    "ДД.ММ.РРРР\n\n"
+                    "Приклад: 25.01.2026"
+                )
+                data["awaiting_manual_date"] = True
+                return
+
+        # ───── ручная дата ─────
+        if data.get("awaiting_manual_date"):
+            try:
+                date = datetime.strptime(text, "%d.%m.%Y").date()
+                if date < datetime.now().date():
+                    raise ValueError
+            except ValueError:
+                await self.bot.send_message(
+                    chat_id,
+                    "❌ Некоректна дата або дата в минулому.\n"
+                    "Спробуйте ще раз (ДД.ММ.РРРР)"
+                )
+                return
+
+            data["visit_date"] = date.strftime("%d.%m.%Y")
+            data.pop("awaiting_manual_date")
+
+            await self.bot.send_message(
+                chat_id,
+                f"Обрана дата: {data['visit_date']}\n"
+                "Напишіть зручний час ⏰"
+            )
+            return
+
+        # ───── время ─────
         if "visit_time" not in data:
             data["visit_time"] = text
 
-            # 🤖 AI-анализ
             ai = analyze_lead(data)
 
-            # 📦 ЛИД под Google Sheets
             lead = {
                 "created_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
                 "lead_id": chat_id,
@@ -70,22 +148,18 @@ class DialogManager:
                 "ai_status": ai["status"],
                 "ai_comment": ai["comment"],
                 "admin_status": "",
-                "admin_comment": f"Желаемое время: {data['visit_time']}",
+                "admin_comment": f"Дата: {data['visit_date']}, Час: {data['visit_time']}",
                 "source": "telegram",
                 "updated_at": ""
             }
 
-            # 1️⃣ Google Sheets
             send_to_sheets(lead)
-
-            # 2️⃣ Админ-бот
             notify_admin(lead)
 
-            # 3️⃣ Ответ клиенту
             await self.bot.send_message(
                 chat_id,
-                "Спасибо 🙌\nМы получили вашу заявку и скоро свяжемся с вами."
+                "Дякуємо 🙌\n"
+                "Ваша заявка прийнята, ми звʼяжемось з вами найближчим часом."
             )
 
-            # 🧹 очистка состояния
             self.state.pop(chat_id, None)
