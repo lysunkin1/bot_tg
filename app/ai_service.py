@@ -4,16 +4,18 @@ from openai import AsyncOpenAI
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-async def analyze_lead(user: dict) -> str:
+async def analyze_lead(user: dict) -> dict:
     prompt = f"""
-Клиент салона красоты.
-Услуга: {user['service']}
-Имя: {user['name']}
+Ты администратор салона красоты.
+Определи готовность клиента.
 
-Сделай краткий вывод:
-- тип клиента
-- срочность
-- как лучше с ним общаться
+Услуга: {user['service']}
+Дата: {user['date']}
+Время: {user['time']}
+
+Верни JSON:
+status: hot / warm / cold
+comment: краткий комментарий
 """
 
     response = await client.chat.completions.create(
@@ -22,4 +24,16 @@ async def analyze_lead(user: dict) -> str:
         max_tokens=120,
     )
 
-    return response.choices[0].message.content.strip()
+    text = response.choices[0].message.content.lower()
+
+    if "hot" in text:
+        status = "HOT"
+    elif "cold" in text:
+        status = "COLD"
+    else:
+        status = "WARM"
+
+    return {
+        "status": status,
+        "comment": response.choices[0].message.content.strip(),
+    }

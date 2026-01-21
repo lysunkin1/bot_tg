@@ -8,9 +8,6 @@ ADMIN_API_URL = f"https://api.telegram.org/bot{ADMIN_BOT_TOKEN}"
 
 
 async def notify_admin(text: str):
-    """
-    Отправка заявки администратору
-    """
     async with httpx.AsyncClient() as client:
         await client.post(
             f"{ADMIN_API_URL}/sendMessage",
@@ -19,13 +16,9 @@ async def notify_admin(text: str):
                 "text": text,
                 "reply_markup": {
                     "inline_keyboard": [
-                        [
-                            {"text": "📅 Записать", "callback_data": "admin_book"},
-                            {"text": "📞 Перезвонить", "callback_data": "admin_call"},
-                        ],
-                        [
-                            {"text": "❌ Отказ", "callback_data": "admin_reject"},
-                        ],
+                        [{"text": "📅 Записать", "callback_data": "admin_book"}],
+                        [{"text": "📞 Перезвонить", "callback_data": "admin_call"}],
+                        [{"text": "❌ Отказ", "callback_data": "admin_reject"}],
                     ]
                 },
             },
