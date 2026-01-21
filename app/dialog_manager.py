@@ -1,63 +1,52 @@
-from app.sheets_service import send_to_sheets
+# app/dialog_manager.py
+
 from app.notifier import notify_admin
+from app.sheets_service import send_to_sheets
+from app.ai_service import analyze_lead
 
 
 class DialogManager:
-    def init(self, bot):
-        self.bot = bot
-        self.state = {}
+    def init(self):
+        self.states = {}
 
-    async def handle(self, chat_id: int, text: str):
-        data = self.state.get(chat_id)
+    async def handle_start(self, chat_id: int, send_message):
+        self.states[chat_id] = {}
+        await send_message(chat_id, "Здравствуйте 👋\nВыберите услугу:")
 
-        # START
-        if text == "/start" or not data:
-            self.state[chat_id] = {}
-            await self.bot.send_message(
-                chat_id,
-                "Здравствуйте 👋\nКакую услугу вы хотите?"
-            )
+    async def handle_message(self, chat_id: int, text: str, send_message):
+        state = self.states.get(chat_id, {})
+
+        # Простейший пример логики
+        if "service" not in state:
+            state["service"] = text
+            self.states[chat_id] = state
+            await send_message(chat_id, "Введите ваше имя:")
             return
 
-        # Услуга
-        if "service" not in data:
-            data["service"] = text
-            self.state[chat_id] = data
-            await self.bot.send_message(chat_id, "Как вас зовут?")
+        if "name" not in state:
+            state["name"] = text
+            self.states[chat_id] = state
+            await send_message(chat_id, "Введите номер телефона:")
             return
 
-        # Имя
-        if "name" not in data:
-            data["name"] = text
-            await self.bot.send_message(chat_id, "Введите номер телефона 📞")
-            return
-
-        # Телефон → финал
-        if "phone" not in data:
-            data["phone"] = text
+        if "phone" not in state:
+            state["phone"] = text
 
             lead = {
-                "client_id": chat_id,
-                "service": data["service"],
-                "name": data["name"],
-                "phone": data["phone"],
-                "date": "не указана",
-                "time": "не указано",
-                "status": "NEW",
-                "comment": "Новая заявка, требуется обработка"
+                "name": state["name"],
+                "phone": state["phone"],
+                "service": state["service"],
             }
 
-            # 1️⃣ Google Sheets
+            # AI анализ
+            ai_result = analyze_lead(lead)
+            lead.update(ai_result)
+
+            # Google Sheets
             send_to_sheets(lead)
 
-            # 2️⃣ Админский бот
-            notify_admin(lead)
+            # Админ-бот
+            await notify_admin(lead)
 
-            # 3️⃣ Ответ клиенту
-            await self.bot.send_message(
-                chat_id,
-                "Спасибо! 🙌\nЗаявка отправлена администратору."
-            )
-
-            # Чистим состояние
-            self.state.pop(chat_id, None)
+            await send_message(chat_id, "Спасибо! 🙌 Заявка принята.")
+            self.states.pop(chat_id, None)
