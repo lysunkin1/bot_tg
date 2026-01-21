@@ -1,82 +1,49 @@
-from datetime import datetime, date
-from app.ai import analyze_lead
-from app.notifier import notify_admin
-from app.sheets import send_to_sheets
+from app.ai_service import analyze_lead
+from app.sheets_service import send_to_sheets
 
 class DialogManager:
-    def __init__(self):
-        self.sessions = {}
-
-    def _get(self, chat_id):
-        return self.sessions.setdefault(chat_id, {})
+    def __init__(self, bot):
+        self.bot = bot
+        self.state = {}
 
     async def handle_start(self, chat_id, send):
-        self.sessions[chat_id] = {"chat_id": chat_id}
+        self.state[chat_id] = {}
         await send(chat_id, "Здравствуйте 👋\nВыберите услугу:")
 
-    async def handle_message(self, chat_id, text, send):
-        s = self._get(chat_id)
+    async def finalize(self, chat_id, send):
+        lead = self.state[chat_id]
 
-        if "service" not in s:
-            s["service"] = text
-            await send(chat_id, "Выберите дату:")
-            return
+        ai = analyze_lead(lead)
 
-        if "date" not in s:
-            s["date"] = text
-            await send(chat_id, "Выберите время:")
-            return
+        lead["status"] = ai["status"].upper()
+        lead["comment"] = ai["comment"]
 
-        if "time" not in s:
-            s["time"] = text
-            await send(chat_id, "Как вас зовут?")
-            return
+        # ⬇️ ВАЖНО: client_id НЕ ТЕРЯЕМ
+        lead["client_id"] = chat_id
 
-        if "name" not in s:
-            s["name"] = text
-            await send(chat_id, "Введите номер телефона 📞")
-            return
-
-        if "phone" not in s:
-            s["phone"] = text
-            await self.finish(chat_id, send)
-
-    async def finish(self, chat_id, send):
-        s = self.sessions[chat_id]
-
-        # ---- статус СЧИТАЕМ КОДОМ ----
-        selected = datetime.fromisoformat(
-            f"{s['date']} {s['time']}"
-        )
-        days = (selected.date() - date.today()).days
-
-        if days <= 1:
-            status = "HOT"
-        elif days <= 5:
-            status = "WARM"
-        else:
-            status = "COLD"
-
-        # ---- ИИ ТОЛЬКО КОММЕНТАРИЙ ----
-        comment = analyze_lead(
-            service=s["service"],
-            date=s["date"],
-            time=s["time"]
-        )
-
-        lead = {
-            "chat_id": chat_id,
-            "name": s["name"],
-            "phone": s["phone"],
-            "service": s["service"],
-            "date": s["date"],
-            "time": s["time"],
-            "status": status,
-            "comment": comment,
-        }
-
-        notify_admin(lead)
         send_to_sheets(lead)
 
-        await send(chat_id, "Спасибо! 🙌 Заявка передана администратору.")
-        del self.sessions[chat_id]
+        await self.bot.send_message(
+            chat_id=self.bot.admin_chat_id,
+            text=(
+                "📩 Новая заявка\n\n"
+                f"👤 Имя: {lead['name']}\n"
+                f"📞 Телефон: {lead['phone']}\n"
+                f"💼 Услуга: {lead['service']}\n"
+                f"📅 Дата: {lead['date']} {lead['time']}\n\n"
+                f"🔥 Статус: {lead['status']}\n"
+                f"🤖 Комментарий: {lead['comment']}"
+            ),
+            reply_markup=self._admin_keyboard()
+        )
+
+        await send(chat_id, "Спасибо! 🙌\nЗаявка передана администратору.")
+
+    def _admin_keyboard(self):
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("📅 Записать", callback_data="approve")],
+            [InlineKeyboardButton("📞 Перезвонить", callback_data="call")],
+            [InlineKeyboardButton("❌ Отказ", callback_data="reject")]
+        ])

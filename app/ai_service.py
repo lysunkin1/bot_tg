@@ -1,39 +1,31 @@
-import os
-from openai import AsyncOpenAI
+from openai import OpenAI
+from app.config import OPENAI_API_KEY
 
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-
-async def analyze_lead(user: dict) -> dict:
+def analyze_lead(lead: dict) -> dict:
     prompt = f"""
-Ты администратор салона красоты.
-Определи готовность клиента.
+Ты CRM ассистент салона красоты.
 
-Услуга: {user['service']}
-Дата: {user['date']}
-Время: {user['time']}
+Данные клиента:
+Имя: {lead.get('name')}
+Услуга: {lead.get('service')}
+Дата: {lead.get('date')}
+Время: {lead.get('time')}
 
-Верни JSON:
-status: hot / warm / cold
-comment: краткий комментарий
+Определи статус лида:
+- HOT: записан на ближайшие 1–2 дня
+- WARM: есть интерес, но не срочно
+- COLD: далеко или не уверен
+
+Ответь СТРОГО JSON:
+{{"status": "hot|warm|cold", "comment": "короткий комментарий"}}
 """
 
-    response = await client.chat.completions.create(
+    r = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=120,
+        temperature=0.2
     )
 
-    text = response.choices[0].message.content.lower()
-
-    if "hot" in text:
-        status = "HOT"
-    elif "cold" in text:
-        status = "COLD"
-    else:
-        status = "WARM"
-
-    return {
-        "status": status,
-        "comment": response.choices[0].message.content.strip(),
-    }
+    return eval(r.choices[0].message.content)
