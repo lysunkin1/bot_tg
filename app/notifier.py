@@ -1,22 +1,33 @@
-import requests
-from app.config import TELEGRAM_ADMIN_BOT_TOKEN, ADMIN_CHAT_ID
+import os
+import httpx
+
+ADMIN_BOT_TOKEN = os.getenv("TELEGRAM_ADMIN_BOT_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+
+ADMIN_API_URL = f"https://api.telegram.org/bot{ADMIN_BOT_TOKEN}"
 
 
-def notify_manager_with_actions(text: str, lead_id: int):
-    url = f"https://api.telegram.org/bot{TELEGRAM_ADMIN_BOT_TOKEN}/sendMessage"
-
-    payload = {
-        "chat_id": ADMIN_CHAT_ID,
-        "text": text,
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {"text": "📅 Записать", "callback_data": f"book:{lead_id}"},
-                    {"text": "📞 Перезвонить", "callback_data": f"call:{lead_id}"}
-                ]
-            ]
-        }
-    }
-
-    response = requests.post(url, json=payload)
-    print("Admin notify response:", response.text)
+async def notify_admin(text: str):
+    """
+    Отправка заявки администратору
+    """
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{ADMIN_API_URL}/sendMessage",
+            json={
+                "chat_id": ADMIN_CHAT_ID,
+                "text": text,
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {"text": "📅 Записать", "callback_data": "admin_book"},
+                            {"text": "📞 Перезвонить", "callback_data": "admin_call"},
+                        ],
+                        [
+                            {"text": "❌ Отказ", "callback_data": "admin_reject"},
+                        ],
+                    ]
+                },
+            },
+            timeout=10,
+        )
