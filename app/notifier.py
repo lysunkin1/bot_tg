@@ -9,6 +9,7 @@ def notify_admin(lead: dict):
         f"👤 Имя: {lead['client_name']}\n"
         f"📞 Телефон: {lead['phone']}\n"
         f"💅 Услуга: {lead['service']}\n"
+        f"🕒 Желаемое время: {lead.get('admin_comment', '—')}\n"
         f"🤖 AI статус: {lead['ai_status']}\n"
         f"💬 AI комментарий: {lead['ai_comment']}"
     )
