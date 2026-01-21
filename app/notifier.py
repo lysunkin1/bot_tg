@@ -1,20 +1,30 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from app.config import ADMIN_CHAT_ID
+import requests
+from app.config import TELEGRAM_ADMIN_BOT_TOKEN, ADMIN_CHAT_ID
 
-async def notify_admin(bot, lead: dict):
+
+def notify_admin(lead: dict):
+    """
+    Отправляет заявку во второй (админский) Telegram-бот
+    """
+
     text = (
         "📩 Новая заявка\n\n"
+        f"🆔 ID клиента: {lead['client_id']}\n"
         f"👤 Имя: {lead['name']}\n"
         f"📞 Телефон: {lead['phone']}\n"
-        f"💼 Услуга: {lead['service']}\n\n"
+        f"💼 Услуга: {lead['service']}\n"
+        f"📅 Дата: {lead['date']} {lead['time']}\n\n"
         f"🔥 Статус: {lead['status']}\n"
         f"💬 Комментарий: {lead['comment']}"
     )
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📅 Записать", callback_data="confirm")],
-        [InlineKeyboardButton("📞 Перезвонить", callback_data="call")],
-        [InlineKeyboardButton("❌ Отказ", callback_data="reject")]
-    ])
+    url = f"https://api.telegram.org/bot{TELEGRAM_ADMIN_BOT_TOKEN}/sendMessage"
 
-    await bot.send_message(ADMIN_CHAT_ID, text, reply_markup=keyboard)
+    requests.post(
+        url,
+        json={
+            "chat_id": ADMIN_CHAT_ID,
+            "text": text
+        },
+        timeout=5
+    )
