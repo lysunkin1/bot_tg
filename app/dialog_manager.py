@@ -1,70 +1,67 @@
-from typing import Dict
+from typing import Dict, Callable, Awaitable
 
 
 class DialogManager:
     """
-    Управляет диалогом с клиентом.
-    Пока без AI и CRM — только стабильная логика.
+    Управляет логикой диалога.
+    Не зависит напрямую от Telegram API.
     """
 
-    def __init__(self, bot):
-        self.bot = bot
-
-        # Простое хранение состояния диалога в памяти
+    def __init__(self):
         # chat_id -> step
         self.user_states: Dict[int, str] = {}
 
-    async def handle_start(self, chat_id: int):
-        """
-        Обработка команды /start
-        """
+    async def handle_start(
+        self,
+        chat_id: int,
+        send_message: Callable[[int, str], Awaitable[None]],
+    ):
         self.user_states[chat_id] = "service"
 
-        await self.bot.send_message(
+        await send_message(
             chat_id,
             "Здравствуйте 👋\n"
             "Подскажите, какая услуга вас интересует?"
         )
 
-    async def handle_message(self, chat_id: int, text: str):
-        """
-        Обработка обычных сообщений
-        """
+    async def handle_message(
+        self,
+        chat_id: int,
+        text: str,
+        send_message: Callable[[int, str], Awaitable[None]],
+    ):
         step = self.user_states.get(chat_id)
 
         if step is None:
-            # Если пользователь написал без /start
-            await self.handle_start(chat_id)
+            await self.handle_start(chat_id, send_message)
             return
 
         if step == "service":
             self.user_states[chat_id] = "date"
 
-            await self.bot.send_message(
+            await send_message(
                 chat_id,
                 f"Хорошо 👍\n"
-                f"Вы выбрали услугу: *{text}*\n\n"
-                f"Когда вам удобно прийти?",
-                parse_mode="Markdown"
+                f"Вы выбрали услугу: {text}\n\n"
+                f"Когда вам удобно прийти?"
             )
             return
 
         if step == "date":
             self.user_states[chat_id] = "contact"
 
-            await self.bot.send_message(
+            await send_message(
                 chat_id,
                 f"Отлично 🗓\n"
-                f"Записала: *{text}*\n\n"
-                f"Как удобнее с вами связаться?",
-                parse_mode="Markdown"
+                f"Записала: {text}\n\n"
+                f"Как удобнее с вами связаться?"
             )
             return
 
         if step == "contact":
             self.user_states.pop(chat_id, None)
 
-            await self.bot.send_message(
+            await send_message(
                 chat_id,
                 "Спасибо! 😊\n"
                 "Я передала информацию администратору.\n"
@@ -72,8 +69,7 @@ class DialogManager:
             )
             return
 
-        # Фолбэк на всякий случай
-        await self.bot.send_message(
+        await send_message(
             chat_id,
-            "Я вас поняла 🙂 Напишите /start, чтобы начать заново."
+            "Напишите /start, чтобы начать заново 🙂"
         )
