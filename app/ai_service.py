@@ -1,25 +1,28 @@
-from app.enums import LeadStatus
+def analyze_lead(payload: dict) -> dict:
+    """
+    payload:
+    - service
+    - phone
+    - visit_datetime
+    """
 
-def analyze_lead(data: dict) -> dict:
-    service = data.get("service", "").lower()
-    phone = data.get("phone")
+    service = payload.get("service")
+    phone = payload.get("phone")
+    visit = payload.get("visit_datetime")
 
-    # если есть телефон и конкретная услуга
-    if phone and service in ["брови", "ресницы", "маникюр", "массаж"]:
+    if service and phone and visit:
         return {
-            "status": LeadStatus.HOT,
-            "comment": "Клиент выбрал услугу и оставил телефон — готов к записи"
+            "ai_status": "HOT",
+            "ai_comment": "Клієнт обрав послугу, залишив номер та час візиту"
         }
 
-    # если есть телефон, но услуга неочевидна
-    if phone:
+    if service and phone:
         return {
-            "status": LeadStatus.WARM,
-            "comment": "Клиент оставил телефон, но требуется консультация"
+            "ai_status": "WARM",
+            "ai_comment": "Клієнт зацікавлений, потрібно уточнити час"
         }
 
-    # если телефона нет (на будущее)
     return {
-        "status": LeadStatus.COLD,
-        "comment": "Интерес без контактов, холодный лид"
+        "ai_status": "COLD",
+        "ai_comment": "Недостатньо даних для запису"
     }
